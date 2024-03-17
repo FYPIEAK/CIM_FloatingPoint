@@ -23,7 +23,7 @@
 
 */
 
-module ReDCIM 
+module ReDCIM_size2 
 (
     input                   clk       ,
     input                   rst_n     ,
@@ -49,8 +49,7 @@ reg [1:0]       A_sign,B_sign            ;
 reg [3:0]       state,next_state         ;
 reg [7:0]       max_exp             [1:0];
 reg [31:0]      partial_product     [1:0]; //原本两个尾数8位，乘积16位，但是因为需要做带符号乘法，需要用2个16位先乘出32位，加和时再取出低16位
-reg [16:0]      partial_product_17  [1:0];
-reg [1:0]  partial_product_sign          ;
+reg [15:0]      partial_product_16  [1:0];
 reg [7:0]       result_exp               ;
 reg [6:0]       result_mantisa           ;
 reg             result_sign              ;
@@ -70,7 +69,7 @@ parameter IDLE   = 4'd0, //拆分数据
           NORMAL = 4'd8,
           OUT    = 4'd9,
           DONE   = 4'd10;
-integer i,j,k;
+integer i,j;
 
 // function called clogb2 that returns an integer which has the value of the ceiling of the log base 2.
 function integer clogb2 (input integer size);
@@ -98,7 +97,7 @@ always @(*) begin
 
     case (state)
         IDLE: begin
-                A_sign[0]  = BF16_A[(16*2-1) ]; 
+                A_sign[0]  = BF16_A[(16*2-1)]; 
                 A_exp[0]   = BF16_A[(16*2-2) -: 8]; 
                 A_mant[0]  = BF16_A[(16*2-10) -: 7]; 
         
@@ -118,8 +117,6 @@ always @(*) begin
                 max_exp[1]  = 0;
 
                 leading_one_position = 0;
-                A_sign               = 0;
-                B_sign               = 0;
                 result_exp           = 0;
                 result_mantisa       = 0;
                 result_sign          = 0;
@@ -211,13 +208,13 @@ always @(*) begin
                     partial_product[i] = A_mant_shift[i] * B_mant_shift[i]; 
                 end
                 for (i = 0; i < 2; i = i + 1) begin
-                    partial_product_17[i] = partial_product[i][16:0]; //补码乘法取低16位+1位符号位
+                    partial_product_16[i] = partial_product[i][15:0]; //补码乘法取低16位
                 end
                 next_state <= ADD;
             end
             ADD:begin
                 for (j = 0; j < 2; j = j + 1) begin
-                    sum = sum + partial_product_17[j]; 
+                    sum = sum + partial_product_16[j]; 
                 end
                 result_exp = max_exp[0] + max_exp[1] - 8'd127;
                 next_state = EXTRACT;

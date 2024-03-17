@@ -15,7 +15,7 @@ reg start;
 wire [15:0] BF16_out;
 
 // 实例化被测试模块
-ReDCIM_size2 uut (
+ReDCIM uut (
     .clk(clk), 
     .rst_n(rst_n), 
     .start(start),
@@ -33,12 +33,13 @@ initial begin
 
     #20;
     rst_n = 1;
-    BF16_A = {16'h41BF, 16'h4135}; 
-    BF16_B = {16'h4252, 16'hC2BB}; 
-    #1000;
     start = 1;
     BF16_A = {16'b1_10000101_1000000, 16'b1_10000011_0111011}; 
     BF16_B = {16'b0_10000101_0100011, 16'b0_10000001_0101010};
+    //-18.3964*34.1843 + (-38.3963)*71.6737 = -3380.65
+    //simulation result:c5fa = -3960
+    #20 
+    start = 0;
     #1000;
     $finish;
 end
