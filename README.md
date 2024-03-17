@@ -1,1 +1,1 @@
-# CIM_Floatingpoint
+# CIM_FloatingPoint
