@@ -205,13 +205,13 @@ always @(*) begin
                     partial_product[i] = A_mant_shift[i] * B_mant_shift[i]; 
                 end
                 for (i = 0; i < 2; i = i + 1) begin
-                    partial_product_17[i] = partial_product[i][16:0]; //补码乘法取低16位
+                    partial_product_cut[i] = partial_product[i][16:0]; //补码乘法取低16位
                 end
                 next_state <= ADD;
             end
             ADD:begin
                 for (j = 0; j < 2; j = j + 1) begin
-                    sum = sum + partial_product_17[j]; 
+                    sum = sum + partial_product_cut[j]; 
                 end
                 result_exp = max_exp[0] + max_exp[1] - 8'd127;
                 next_state = EXTRACT;
