@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module tb_ReDCIM_new;
+module tb_ReDCIM;
 
 parameter SIZE = 2;
 
@@ -15,10 +15,8 @@ reg start;
 wire [15:0] BF16_out;
 
 // 实例化被测试模块
-ReDCIM_new #(
-    .SIZE(SIZE)
-) uut ( 
-    .clk(clk),
+ReDCIM_size2 uut (
+    .clk(clk), 
     .rst_n(rst_n), 
     .start(start),
     .BF16_A(BF16_A), 
@@ -27,6 +25,7 @@ ReDCIM_new #(
 );
 
 initial begin
+    clk = 0;
     rst_n = 0;
     BF16_A = 0;
     BF16_B = 0;
@@ -44,6 +43,7 @@ initial begin
     $finish;
 end
 
+// 时钟信号产生
 always #10 clk = ~clk;
 
 endmodule

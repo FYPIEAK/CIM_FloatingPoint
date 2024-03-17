@@ -23,48 +23,45 @@
 
 */
 
-module ReDCIM_new #(
-    parameter SIZE = 2
-)
+module ReDCIM 
 (
     input                   clk       ,
     input                   rst_n     ,
     input                   start     ,
-    input [16*SIZE-1:0]     BF16_A    ,
-    input [16*SIZE-1:0]     BF16_B    ,
+    input [16*2-1:0]     BF16_A       ,
+    input [16*2-1:0]     BF16_B       ,
     output reg [15:0]       BF16_out  
     );
 
 //reg define
-reg [7:0]       A_exp               [SIZE-1:0];
-reg [7:0]       B_exp               [SIZE-1:0];
-reg [7:0]       A_exp_diff          [SIZE-1:0];
-reg [7:0]       B_exp_diff          [SIZE-1:0];
+reg [7:0]       A_exp               [1:0];
+reg [7:0]       B_exp               [1:0];
+reg [7:0]       A_exp_diff          [1:0];
+reg [7:0]       B_exp_diff          [1:0];
 
-reg [6:0]       A_mant              [SIZE-1:0];
-reg [6:0]       B_mant              [SIZE-1:0];
-reg [7:0]       A_mant_extend       [SIZE-1:0];
-reg [7:0]       B_mant_extend       [SIZE-1:0];
-reg [15:0]       A_mant_shift       [SIZE-1:0];
-reg [15:0]       B_mant_shift       [SIZE-1:0];
-reg [SIZE-1:0]    A_sign,B_sign               ;
-reg [3:0]       state                         ;
-reg [3:0]       next_state                    ;
-reg [7:0]       max_exp                  [1:0];
-reg [31:0]      partial_product      [SIZE-1:0]; //原本两个尾数8位，乘积16位，但是因为需要做带符号乘法，需要用2个16位先乘出32位，加和时再取出低16位
-reg [16:0]      partial_product_17   [SIZE-1:0];
-reg [SIZE-1:0]  partial_product_sign          ;
-reg [7:0]       result_exp                    ;
-reg [6:0]       result_mantisa                ;
-reg             result_sign                   ;
-reg             flag                          ;
+reg [6:0]       A_mant              [1:0];
+reg [6:0]       B_mant              [1:0];
+reg [7:0]       A_mant_extend       [1:0];
+reg [7:0]       B_mant_extend       [1:0];
+reg [15:0]      A_mant_shift        [1:0];
+reg [15:0]      B_mant_shift        [1:0];
+reg [1:0]       A_sign,B_sign            ;
+reg [3:0]       state,next_state         ;
+reg [7:0]       max_exp             [1:0];
+reg [31:0]      partial_product     [1:0]; //原本两个尾数8位，乘积16位，但是因为需要做带符号乘法，需要用2个16位先乘出32位，加和时再取出低16位
+reg [16:0]      partial_product_17  [1:0];
+reg [1:0]  partial_product_sign          ;
+reg [7:0]       result_exp               ;
+reg [6:0]       result_mantisa           ;
+reg             result_sign              ;
+reg             flag                     ;
 //wire define
 
 
 //parameter
 parameter IDLE   = 4'd0, //拆分数据
           ALIGN  = 4'd1, //对齐指数,找最大的指数
-          DIFF   = 4'd2,
+          DIFF   = 4'd2, //指数做差
           SHIFT  = 4'd3, //根据指数，将尾数对应进行移位
           MUL    = 4'd4, //尾数相乘
           ADD    = 4'd5, //尾数部分和相加，指数相加
@@ -82,84 +79,95 @@ begin
     size = size >> 1;
 end
 endfunction
-localparam MAX_SUM = (2**16) * SIZE         ; 
+
+localparam MAX_SUM = (2**16) * 2            ; 
 localparam BIT_NUM = clogb2(MAX_SUM-1)      ;
 localparam bit_num = clogb2(BIT_NUM-1);
 reg [BIT_NUM-1:0]     sum                   ;
 reg [bit_num:0]       leading_one_position  ;
 
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
+    if(!rst_n)
         state <= IDLE;
-    end
-    else begin
+    else
         state <= next_state;
-    end
 end
-always @(*) begin
-    if (!rst_n) begin
-        leading_one_position = 0;
-        A_sign               = 0;
-        B_sign               = 0;
-        result_exp           = 0;
-        result_mantisa       = 0;
-        result_sign          = 0;
-        flag                 = 0;
-        state                = IDLE;
-        sum                  = 0;
 
-    end
-    else begin
-        case (state)
-            IDLE: begin
-                for (i = 0; i < SIZE; i = i + 1) begin
-                    A_sign[i] = BF16_A[(16*SIZE-1) - i*16]; 
-                    A_exp[i]  = BF16_A[(16*SIZE-2) - i*16 -: 8]; 
-                    A_mant[i] = BF16_A[(16*SIZE-10) - i*16 -: 7]; 
+
+always @(*) begin
+
+    case (state)
+        IDLE: begin
+                A_sign[0]  = BF16_A[(16*2-1) ]; 
+                A_exp[0]   = BF16_A[(16*2-2) -: 8]; 
+                A_mant[0]  = BF16_A[(16*2-10) -: 7]; 
         
-                    B_sign[i] = BF16_B[(16*SIZE-1) - i*16]; 
-                    B_exp[i]  = BF16_B[(16*SIZE-2) - i*16 -: 8];
-                    B_mant[i] = BF16_B[(16*SIZE-10) - i*16 -: 7];
+                B_sign[0]  = BF16_B[(16*2-1)]; 
+                B_exp[0]   = BF16_B[(16*2-2)  -: 8];
+                B_mant[0]  = BF16_B[(16*2-10) -: 7];
+
+                A_sign[1]  = BF16_A[(16*2-1) - 16]; 
+                A_exp[1]   = BF16_A[(16*2-2) - 16 -: 8]; 
+                A_mant[1]  = BF16_A[(16*2-10) - 16 -: 7]; 
+    
+                B_sign[1]  = BF16_B[(16*2-1) - 16]; 
+                B_exp[1]   = BF16_B[(16*2-2) - 16 -: 8];
+                B_mant[1]  = BF16_B[(16*2-10) - 16 -: 7];
+
+                max_exp[0]  = 0;
+                max_exp[1]  = 0;
+
+                leading_one_position = 0;
+                A_sign               = 0;
+                B_sign               = 0;
+                result_exp           = 0;
+                result_mantisa       = 0;
+                result_sign          = 0;
+                flag                 = 0;
+                state                = IDLE;
+                sum                  = 0;
+                if (start) begin
+                    next_state  = ALIGN;
                 end
-                max_exp[0] = A_exp[0];
-                max_exp[1] = B_exp[0];
-                next_state = ALIGN;
+                else begin
+                    next_state  = IDLE;
+                end
+                
             end
             ALIGN:begin
-                for (i = 0; i < SIZE; i = i + 1) begin
+                for (i = 0; i < 2; i = i + 1) begin
                     if (A_sign[i]) begin
-                        A_mant_extend[i] = {1'b0,{~A_mant[i] + 1'b1}};
+                        A_mant_extend[i]  = {1'b0,{~A_mant[i] + 1'b1}};
                     end
                     else begin
-                        A_mant_extend[i] = {1'b1,A_mant[i]};
+                        A_mant_extend[i]  = {1'b1,A_mant[i]};
                     end
                     if (B_sign[i]) begin
-                        B_mant_extend[i] = {1'b0,{~B_mant[i] + 1'b1}};
+                        B_mant_extend[i]  = {1'b0,{~B_mant[i] + 1'b1}};
                     end
                     else begin
-                        B_mant_extend[i] = {1'b1,B_mant[i]};
+                        B_mant_extend[i]  = {1'b1,B_mant[i]};
                     end
                 end
-                for (j = 1; j < SIZE; j = j + 1) begin
+                for (j = 0; j < 2; j = j + 1) begin
                     if (A_exp[j] > max_exp[0])
-                        max_exp[0] = A_exp[j];
+                        max_exp[0]  = A_exp[j];
                     if (B_exp[j] > max_exp[1])
-                        max_exp[1] = B_exp[j];
+                        max_exp[1]  = B_exp[j];
                 end
-                next_state = DIFF;
-                sum   = 0;
+                next_state  = DIFF;
+                sum    = 0;
             end
             DIFF: begin
-                for (i = 0; i < SIZE; i = i + 1 ) begin
-                    A_exp_diff[i] = max_exp[0] - A_exp[i];
-                    B_exp_diff[i] = max_exp[1] - B_exp[i];
+                for (i = 0; i < 2; i = i + 1 ) begin
+                    A_exp_diff[i]  = max_exp[0] - A_exp[i];
+                    B_exp_diff[i]  = max_exp[1] - B_exp[i];
                 end
-                next_state = SHIFT;
+                next_state  = SHIFT;
             end
             SHIFT:begin
-                for (i = 0; i < SIZE; i = i + 1) begin
-                    //redcim 中 计算尾数的构成是1位符号位+补充位+6位尾数位
-                    //B_mant_shift[i] = {{B_exp_diff[i]{B_sign[i]}}, B_mant_extend[i][7 -:B_exp_diff[i]]}  ; 
+                for (i = 0; i < 2; i = i + 1) begin
+                    //Redcim 中 计算尾数的构成是1位符号位+补充位+6位尾数位,为了方便补码计算，此处直接将其根据需要移位的位数补成16位，进行补码乘法                         
                     if (A_exp_diff[i] == 8'd1) begin
                         A_mant_shift[i] = {{10{A_sign[i]}}, A_mant_extend[i][7:2]}; 
                     end else if (A_exp_diff[i] == 8'd2) begin
@@ -196,21 +204,20 @@ always @(*) begin
                         B_mant_shift[i] = {{9{B_sign[i]}}, B_mant_extend[i][7:1]}; 
                     end
                 end
-                next_state = MUL;
+                next_state <= MUL;
             end
             MUL:begin
-                for (i = 0; i < SIZE; i = i + 1) begin
+                for (i = 0; i < 2; i = i + 1) begin
                     partial_product[i] = A_mant_shift[i] * B_mant_shift[i]; 
                 end
-                for (i = 0; i < SIZE; i = i + 1) begin
-                    partial_product_17[i] = partial_product[i][16:0];
+                for (i = 0; i < 2; i = i + 1) begin
+                    partial_product_17[i] = partial_product[i][16:0]; //补码乘法取低16位+1位符号位
                 end
-                
-                next_state = ADD;
+                next_state <= ADD;
             end
             ADD:begin
-                for (j = 0; j < SIZE; j = j + 1) begin
-                    sum = sum + partial_product_17[j]; //????????????
+                for (j = 0; j < 2; j = j + 1) begin
+                    sum = sum + partial_product_17[j]; 
                 end
                 result_exp = max_exp[0] + max_exp[1] - 8'd127;
                 next_state = EXTRACT;
@@ -218,10 +225,10 @@ always @(*) begin
             EXTRACT:begin
                 if (sum[BIT_NUM-1] == 1'b1) begin
                     result_sign = 1'b1;
-                    sum[BIT_NUM-2:0] = ~sum[BIT_NUM-2:0] + 1'b1; //转回原码时符号位不变
+                    sum[BIT_NUM-2:0]  = ~sum[BIT_NUM-2:0] + 1'b1; //转回原码时符号位不变
                 end
                 else begin
-                    result_sign = 1'b0;
+                    result_sign  = 1'b0;
                 end
                 next_state = ONE;
                 flag = 0;
@@ -229,7 +236,7 @@ always @(*) begin
             ONE:begin
                 for (i = BIT_NUM - 2; i >= 0; i = i - 1) begin //忽视符号位向下找
                     if (sum[i] == 1'b1 && (flag == 0)) begin
-                        leading_one_position = i;  //????????????????????????
+                        leading_one_position = i;  
                         flag = 1; 
                     end
                 end
@@ -260,7 +267,7 @@ always @(*) begin
                 else if (leading_one_position == 0) begin
                     result_mantisa = 0; 
                 end
-                result_exp = result_exp - (12-leading_one_position);//两个数相乘，小数点应该在低12位前
+                result_exp  = result_exp - (12-leading_one_position);//两个数相乘，小数点应该在低12位前，ReDCIM取的是小数点6位
                 next_state = OUT;
             end
             OUT:begin
@@ -268,23 +275,13 @@ always @(*) begin
                 next_state = DONE;
             end
             DONE:begin
-                leading_one_position = 0;
-                A_sign               = 0;
-                B_sign               = 0;
-                result_exp           = 0;
-                result_mantisa       = 0;
-                result_sign          = 0;
-                flag                 = 0;
-                state                = IDLE;
-                sum                  = 0;
                 BF16_out = {result_sign,result_exp,result_mantisa};
-                next_state = IDLE ;
-                
+                next_state = IDLE;
             end
             default: begin
                 next_state = IDLE;
             end
         endcase
     end
-end
+
 endmodule
